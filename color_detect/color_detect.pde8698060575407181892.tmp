@@ -1,0 +1,178 @@
+/*
+Action plan: 
+1: get color
+2: set hue range into a greyscale image
+3: find contours of that image
+4: draw boxes around those contours 
+*/
+
+
+import gab.opencv.*;
+import processing.video.*;
+import java.awt.Rectangle;
+
+Capture camera;//this is the camera access
+OpenCV opencv;//this is the processing thing
+PImage masterImg; //this is master image
+ArrayList<Contour> contoursX; //this is where countours are stored
+ArrayList<Contour> contoursO; //this is where countours are stored
+
+int colorTrack = 2; //the amount of colors that are needed to track
+int[] hues; //this stores the hue value in degrees
+int[] colors; //this stores the colors as rgb condensed values 
+PImage[] greyScaled; //this is for the greyscaled hued outputs
+int colorTolerance = 10; //this is the tolerance for color, in degrees hue
+int coarseness = 40; //this is how large a rectangle needs to be to be displayed
+float scaleValue = 2.25; //this is how much you need to scale the finished boxes
+boolean isX = false; 
+boolean isO = false; 
+void setup()
+{
+
+  camera = new Capture(this, 640,480);
+  opencv = new OpenCV(this, camera.width, camera.height); 
+  contoursX = new ArrayList<Contour>(); 
+  contoursO = new ArrayList<Contour>(); 
+  size(1000, 500, P2D); //P2D allows CUDA acceleration
+  colors = new int[colorTrack]; 
+  hues = new int[colorTrack]; 
+  greyScaled = new PImage[colorTrack]; 
+  camera.start(); 
+  
+  textSize(40);
+  stroke(255,0,0);
+  fill(255,0,0);
+  background(71,206,255); 
+ 
+  
+}
+void draw()
+{
+  
+  background(71,206,255); 
+  if(camera.available())
+  {
+   camera.read();  
+  }
+  opencv.loadImage(camera); 
+  opencv.useColor();
+  masterImg = opencv.getSnapshot(); 
+  opencv.useColor(HSB);
+  image(masterImg,0,0); 
+   if(isX == false || isO == false)
+    {
+      if(isX == false)
+      {
+        text("click on the X", 100, 50);
+      }
+      else if(isO == false)
+      {
+        text("click on the O", 100, 50);
+      }
+    }
+    else if(isX == true && isO == true)
+    {
+      detectColors(); 
+      displayBoxes(); 
+    }
+  
+  
+  
+}
+void detectColors()
+{
+  for (int i = 0; i<hues.length; i++)
+  {
+    if(hues[i] <= 0) continue; 
+    opencv.loadImage(masterImg);
+    opencv.useColor(HSB); 
+    
+    //we need to use the hue channel as the gray channel
+    //in a normal greyscale, the channel is the entire thing, but here,
+    //we're useing just the single hue channel. 
+    
+    opencv.setGray(opencv.getH().clone()); 
+    int hueCarrier = hues[i]; 
+    
+    //we need to filter the image based on the 
+    //hue values represented in the greyscale image
+    
+    opencv.inRange(hueCarrier-colorTolerance/2, hueCarrier+colorTolerance/2); 
+   
+    //just making things a bit crisper:
+    opencv.erode(); 
+    greyScaled[i] = opencv.getSnapshot(); 
+  }
+  //now we find the contours in our greyscaled image
+
+    if (greyScaled[0] != null)
+      {
+        opencv.loadImage(greyScaled[0]);
+        contoursX = opencv.findContours(true,true);
+      }
+    if (greyScaled[1] != null)
+      {
+        opencv.loadImage(greyScaled[1]);
+        contoursO = opencv.findContours(true,true);
+      }
+}
+void displayBoxes()
+{
+  for (int i = 0; i < contoursX.size(); i++)
+  {
+    Contour contour = contoursX.get(i);
+    Rectangle r = contour.getBoundingBox();
+    
+    if (r.width < coarseness || r.height < coarseness)
+      continue;
+    
+    stroke(255, 0, 0);
+    fill(255, 0, 0, 150);
+    strokeWeight(2);
+    rect(r.x, r.y, r.width, r.height);
+  }
+  for (int i = 0; i < contoursO.size(); i++)
+  {
+    Contour contour = contoursO.get(i);
+    Rectangle r = contour.getBoundingBox();
+    
+    if (r.width < coarseness || r.height < coarseness)
+      continue;
+    
+    stroke(0, 255, 0);
+    fill(0, 0, 255, 150);
+    strokeWeight(2);
+    rect(r.x, r.y, r.width, r.height);
+  }
+}
+void mousePressed() 
+{
+   if(isX == false)
+   {
+    color c = get(mouseX, mouseY); 
+    colors[0] = c; 
+    int hue = int(map(hue(c), 0, 255, 0, 180));//maps the color from 255 to 180
+    hues[0] = hue; 
+    isX = true; 
+   }
+   else if(isO == false)
+   {
+    color c = get(mouseX, mouseY); 
+    colors[1] = c; 
+    int hue = int(map(hue(c), 0, 255, 0, 180));//maps the color from 255 to 180
+    hues[1] = hue; 
+    isO = true; 
+   }
+  
+}
+
+void keyPressed() 
+{
+  
+  
+}
+
+void keyReleased() 
+{
+ 
+}
